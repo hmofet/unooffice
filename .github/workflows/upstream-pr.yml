@@ -1,0 +1,33 @@
+# Send a topic branch of this repo upstream as a PR on hmofet/unodos.
+# Needs the UPSTREAM_TOKEN secret (FORK.md); the same thing runs locally as
+# .fork/upstream-pr.sh with your own gh login.
+name: upstream-pr
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'topic branch (cut from master) to send upstream'
+        required: true
+      title:
+        description: 'PR title'
+        required: true
+
+jobs:
+  pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: open the upstream PR
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+          # inputs go through env, never spliced into the script text
+          BRANCH: ${{ inputs.branch }}
+          TITLE: ${{ inputs.title }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::set the UPSTREAM_TOKEN secret first (FORK.md)"; exit 1
+          fi
+          sh .fork/upstream-pr.sh "$BRANCH" "$TITLE"

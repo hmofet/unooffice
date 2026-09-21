@@ -1,0 +1,69 @@
+# Keep this downstream current with hmofet/unodos (see FORK.md).
+# master  <- fast-forward to upstream master (a pure mirror)
+# main    <- merge master; on conflict, open an issue and leave main alone
+name: upstream-sync
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'hmofet/unooffice'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: fetch upstream
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/hmofet/unodos.git
+          git fetch --no-tags upstream master
+      - name: mirror master
+        run: |
+          # fast-forward only: if master ever diverged, someone committed to
+          # the mirror, and overwriting that silently would lose their work
+          if git merge-base --is-ancestor origin/master upstream/master; then
+            git push origin upstream/master:refs/heads/master
+          else
+            echo "::error::origin/master has commits upstream does not - fix by hand (FORK.md)"
+            exit 1
+          fi
+      - name: merge into main
+        id: merge
+        run: |
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "main already contains upstream/master"; exit 0
+          fi
+          if git merge --no-edit -m "Merge upstream hmofet/unodos master ($(git rev-parse --short upstream/master))" upstream/master; then
+            git push origin HEAD:main
+          else
+            git merge --abort
+            echo "conflict=1" >> "$GITHUB_OUTPUT"
+          fi
+      - name: report a conflict
+        if: steps.merge.outputs.conflict == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          up=$(git rev-parse --short upstream/master)
+          body="Merging upstream \`hmofet/unodos@$up\` into \`main\` conflicts. \`master\` is already mirrored; resolve on \`main\` by hand as described in FORK.md.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh label create upstream-sync --color d93f0b -f >/dev/null 2>&1 || true
+          n=$(gh issue list --label upstream-sync --state open --json number -q '.[0].number')
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$body"
+          else gh issue create --title "Upstream sync conflict" --label upstream-sync --body "$body"; fi
+          exit 1

@@ -41,8 +41,9 @@ Everything outside the fork's own files (`FORK.md`, `.fork/`,
 `upstream-sync.yml`, `upstream-pr.yml`) is meant to converge on upstream. It
 stops converging in these ways:
 
-1. **Work that hasn't landed upstream.** Until hmofet/unodos#1 merges, the
-   whole desktop port exists only here. Anything committed straight to `main`
+1. **Work that hasn't landed upstream.** The desktop port and its
+   installers landed upstream on 2026-09-21 (hmofet/unodos#1, a fast-forward,
+   so the commits are identical in both repos). Anything committed straight to `main`
    and never sent upstream stays a permanent difference, so do the work on
    topic branches off `master` and send them.
 2. **Upstream changing what the desktop shell uses.** `uodesk.c` and

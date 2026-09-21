@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   issues: write
+  actions: write      # to start the desktop build after a merge (below)
 
 concurrency:
   group: upstream-sync
@@ -49,10 +50,22 @@ jobs:
           fi
           if git merge --no-edit -m "Merge upstream hmofet/unodos master ($(git rev-parse --short upstream/master))" upstream/master; then
             git push origin HEAD:main
+            echo "merged=1" >> "$GITHUB_OUTPUT"
           else
             git merge --abort
             echo "conflict=1" >> "$GITHUB_OUTPUT"
           fi
+      # A push made with the workflow's own token does NOT trigger other
+      # workflows, so without this the merged upstream code would never be
+      # built here - and upstream changing a contract the desktop shell
+      # consumes (uno_fs_*, pc64_shell_*, the app vtable, build.sh's file
+      # lists) is exactly how this repo breaks.  workflow_dispatch is the
+      # one trigger that token is allowed to fire.
+      - name: build and install-test the merged main
+        if: steps.merge.outputs.merged == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run uoffice-desktop.yml --ref main -R "$GITHUB_REPOSITORY"
       - name: report a conflict
         if: steps.merge.outputs.conflict == '1'
         env:
